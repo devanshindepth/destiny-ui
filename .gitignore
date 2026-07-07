@@ -1,0 +1,49 @@
+# Dependency directories
+node_modules/
+
+# Build and output directories
+dist/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+.kiro/
+.kiro
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage output
+coverage/
+*.lcov
+.nyc_output/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
