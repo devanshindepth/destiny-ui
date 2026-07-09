@@ -19,15 +19,8 @@ export default defineWorkspace([
       passWithNoTests: true,
     },
   },
-  {
-    test: {
-      name: 'editor',
-      root: './packages/editor',
-      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-      environment: 'jsdom',
-      passWithNoTests: true,
-    },
-  },
+  // Editor uses its own vite.config.ts so Preact aliases and jsdom are picked up
+  './packages/editor/vite.config.ts',
   {
     test: {
       name: 'cli',
