@@ -30,6 +30,7 @@ import {
   getDependents,
   parseTokenFile,
   serializeToDTCG,
+  serializeToCSS,
   isAlias,
   type DesignStudioConfig,
   type TokenError,
@@ -41,6 +42,7 @@ import {
 } from '@destiny-ui/core';
 
 import { type EngineState } from './engineState.js';
+import { type ServerMessage } from './wsServer.js';
 
 // ─── Response envelope ────────────────────────────────────────────────────────
 
@@ -167,18 +169,22 @@ interface PostTokenBody {
  * Create and return an `http.Server` that mounts the Design Studio REST API
  * and serves the editor SPA as static files.
  *
- * @param config   - Design Studio configuration (ports, paths, etc.)
- * @param state    - Mutable engine state object shared with the caller.
- *                   All API mutations update this object in-place so that
- *                   WebSocket handlers (owned by the caller) can observe
- *                   the latest graph and errors.
- * @param distPath - Optional path to the SPA dist directory.  Defaults to a
- *                   sensible relative path for development.
+ * @param config    - Design Studio configuration (ports, paths, etc.)
+ * @param state     - Mutable engine state object shared with the caller.
+ *                    All API mutations update this object in-place so that
+ *                    WebSocket handlers (owned by the caller) can observe
+ *                    the latest graph and errors.
+ * @param distPath  - Optional path to the SPA dist directory.  Defaults to a
+ *                    sensible relative path for development.
+ * @param broadcast - Optional callback invoked after every successful token
+ *                    mutation with the appropriate `ServerMessage` to push to
+ *                    all connected WebSocket clients.
  */
 export function createServer(
   config: DesignStudioConfig,
   state: EngineState,
   distPath?: string,
+  broadcast?: (message: ServerMessage) => void,
 ): http.Server {
   const app = express();
   app.use(express.json());
@@ -268,6 +274,14 @@ export function createServer(
     }
 
     const payload = buildTokensPayload(state);
+
+    // Broadcast delta CSS patch + errors to WebSocket clients
+    if (broadcast) {
+      const deltaCss = serializeToCSS(state.graph, { tokenIds: [id] });
+      broadcast({ type: 'css-patch', css: deltaCss, tokenIds: [id] });
+      broadcast({ type: 'error-update', errors: state.errors });
+    }
+
     res.json(ok(payload.tokens, payload.errors));
   });
 
@@ -350,6 +364,14 @@ export function createServer(
     }
 
     const payload = buildTokensPayload(state);
+
+    // Broadcast delta CSS patch + errors to WebSocket clients
+    if (broadcast) {
+      const deltaCss = serializeToCSS(state.graph, { tokenIds: [body.id] });
+      broadcast({ type: 'css-patch', css: deltaCss, tokenIds: [body.id] });
+      broadcast({ type: 'error-update', errors: state.errors });
+    }
+
     res.status(201).json(ok(payload.tokens, payload.errors));
   });
 
@@ -387,6 +409,22 @@ export function createServer(
     }
 
     const payload = buildTokensPayload(state);
+
+    // After deletion, broadcast a full tokens-reload since the token no longer
+    // exists (delta CSS for a deleted token would be empty / meaningless).
+    // Also broadcast updated errors.
+    if (broadcast) {
+      const resolvedTokens = resolveAll(state.graph);
+      const tokens: import('@destiny-ui/core').ResolvedToken[] = [];
+      for (const [, entry] of resolvedTokens) {
+        if (!('kind' in entry)) {
+          tokens.push(entry as import('@destiny-ui/core').ResolvedToken);
+        }
+      }
+      broadcast({ type: 'tokens-reload', tokens });
+      broadcast({ type: 'error-update', errors: state.errors });
+    }
+
     res.json(ok(payload.tokens, payload.errors));
   });
 
