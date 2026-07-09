@@ -395,3 +395,10 @@ body { font-family: system-ui, sans-serif; }
   gap: 10px;
   margin-top: 8px;
 }
+
+/* ── Preview Frame ──────────────────────────────────────────────── */
+.preview-frame { width: 100%; height: 100%; border: none; display: block; }
+.preview-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 24px; text-align: center; color: #9ca3af; }
+.preview-placeholder__title { font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: #6b7280; }
+.preview-placeholder__text { font-size: 0.8125rem; line-height: 1.5; }
+.preview-placeholder__link { color: #6366f1; text-decoration: underline; margin-top: 8px; display: inline-block; }
