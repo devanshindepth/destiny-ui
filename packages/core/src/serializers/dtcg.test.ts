@@ -59,6 +59,26 @@ describe('serializeToDTCG – JSON output', () => {
     expect(parsed.color.brand.primary.$description).toBe('Primary brand color');
   });
 
+  it('serializes nested aliases in composite tokens back to {token.id} syntax', () => {
+    const token = makeToken(
+      'shadow.card',
+      'shadows',
+      'shadow',
+      {
+        offsetX: '0px',
+        offsetY: '4px',
+        blur: '8px',
+        spread: '0px',
+        color: { $alias: 'color.shadow' }
+      }
+    );
+    const graph = buildTokenGraph([token]);
+    const output = serializeToDTCG(graph, { format: 'json' });
+    const parsed = JSON.parse(output);
+
+    expect(parsed.shadow.card.$value.color).toBe('{color.shadow}');
+  });
+
   it('omits $description when absent', () => {
     const token = makeToken('spacing.base', 'spacing', 'dimension', '16px');
     const graph = buildTokenGraph([token]);

@@ -24,6 +24,9 @@ type DTCGLeaf = {
   $value: BaseValue | string;
   $type: string;
   $description?: string;
+  $extensions?: {
+    modes?: Record<string, unknown>;
+  };
 };
 
 type DTCGNode = DTCGLeaf | DTCGTree;
@@ -59,12 +62,20 @@ function setNestedValue(
 
 // ─── Value serialization ──────────────────────────────────────────────────────
 
-/**
- * Serialize a BaseValue for DTCG output.
- * Primitive values (string, number, array, object) are emitted as-is.
- */
-function serializeBaseValue(value: BaseValue): BaseValue {
-  // string, number, number[], ShadowValue — all emit as-is in JSON/YAML
+function serializeBaseValue(value: unknown): any {
+  if (typeof value === 'object' && value !== null) {
+    if ('$alias' in value && typeof (value as any)['$alias'] === 'string') {
+      return `{${(value as any)['$alias']}}`;
+    }
+    if (Array.isArray(value)) {
+      return value.map(serializeBaseValue);
+    }
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = serializeBaseValue(v);
+    }
+    return result;
+  }
   return value;
 }
 
@@ -102,6 +113,18 @@ export function serializeToDTCG(
 
     if (token.description !== undefined) {
       leaf.$description = token.description;
+    }
+
+    if (token.modes !== undefined) {
+      const modes: Record<string, unknown> = {};
+      for (const [modeName, modeVal] of Object.entries(token.modes)) {
+        if (isAlias(modeVal)) {
+          modes[modeName] = `{${modeVal.$alias}}`;
+        } else {
+          modes[modeName] = serializeBaseValue(modeVal);
+        }
+      }
+      leaf.$extensions = { modes };
     }
 
     setNestedValue(root, pathParts, leaf);
