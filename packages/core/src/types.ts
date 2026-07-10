@@ -8,7 +8,9 @@ export type TokenCategory =
   | 'border-radius'
   | 'shadows'
   | 'motion'
-  | 'breakpoints';
+  | 'breakpoints'
+  | 'gradients'
+  | 'borders';
 
 // ─── Token Types ─────────────────────────────────────────────────────────────
 
@@ -22,27 +24,56 @@ export type TokenType =
   | 'dimension'
   | 'shadow'
   | 'duration'
-  | 'cubicBezier';
+  | 'cubicBezier'
+  | 'typography'
+  | 'gradient'
+  | 'border';
 
 // ─── Values ───────────────────────────────────────────────────────────────────
 
+export interface AliasValue {
+  $alias: string; // e.g. "color.brand.primary"
+}
+
+export type Resolvable<T> = T | AliasValue;
+
 export interface ShadowValue {
-  offsetX: string;
-  offsetY: string;
-  blur: string;
-  spread: string;
-  color: string; // #RRGGBBAA
+  offsetX: Resolvable<string>;
+  offsetY: Resolvable<string>;
+  blur: Resolvable<string>;
+  spread: Resolvable<string>;
+  color: Resolvable<string>; // #RRGGBBAA
+}
+
+export interface TypographyValue {
+  fontFamily: Resolvable<string>;
+  fontSize: Resolvable<string>;
+  fontWeight: Resolvable<number | string>;
+  lineHeight: Resolvable<number | string>;
+  letterSpacing: Resolvable<string>;
+}
+
+export interface GradientStopValue {
+  color: Resolvable<string>;
+  position: Resolvable<number>;
+}
+
+export type GradientValue = GradientStopValue[];
+
+export interface BorderValue {
+  color: Resolvable<string>;
+  width: Resolvable<string>;
+  style: Resolvable<string>;
 }
 
 export type BaseValue =
   | string       // color (#RRGGBBAA), dimension ("16px"), fontFamily, duration, etc.
   | number       // fontWeight, lineHeight (unitless)
   | number[]     // cubicBezier [x1, y1, x2, y2]
-  | ShadowValue; // composite shadow
-
-export interface AliasValue {
-  $alias: string; // e.g. "color.brand.primary"
-}
+  | ShadowValue  // composite shadow
+  | TypographyValue
+  | GradientValue
+  | BorderValue;
 
 export type TokenValue = BaseValue | AliasValue;
 
@@ -63,6 +94,7 @@ export interface Token {
   category: TokenCategory;
   type: TokenType;
   value: TokenValue;    // BaseValue | AliasValue
+  modes?: Record<string, TokenValue>; // Conditional values
   description?: string;
   sourceFile: string;   // absolute path to originating Token_File
 }
@@ -90,8 +122,9 @@ export interface TokenGraph {
 
 export interface ResolvedToken {
   token: Token;
-  resolvedValue: BaseValue;   // the primitive value after alias chain resolution
-  aliasChain: string[];        // token IDs traversed during resolution (empty for base tokens)
+  resolvedValue: BaseValue;   // the primitive value after alias chain resolution (default)
+  modes?: Record<string, BaseValue>; // resolved primitives for conditional modes
+  aliasChain: string[];        // token IDs traversed during resolution
 }
 
 // ─── Error Types ─────────────────────────────────────────────────────────────
@@ -193,16 +226,20 @@ export const TOKEN_CATEGORIES: readonly TokenCategory[] = [
   'shadows',
   'motion',
   'breakpoints',
+  'gradients',
+  'borders',
 ] as const;
 
 // Maps each category to its valid token types
 export const TYPES_FOR_CATEGORY: Record<TokenCategory, readonly TokenType[]> = {
   'brand-colors':   ['color'],
   'semantic-colors': ['color'],
-  'typography':     ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing'],
+  'typography':     ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'typography'],
   'spacing':        ['dimension'],
   'border-radius':  ['dimension'],
   'shadows':        ['shadow'],
   'motion':         ['duration', 'cubicBezier'],
   'breakpoints':    ['dimension'],
+  'gradients':      ['gradient'],
+  'borders':        ['border'],
 };

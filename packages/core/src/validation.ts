@@ -3,6 +3,9 @@ import type {
   TokenCategory,
   ValidationError,
   ShadowValue,
+  TypographyValue,
+  GradientValue,
+  BorderValue,
 } from './types.js';
 
 // ─── Regex patterns ──────────────────────────────────────────────────────────
@@ -88,50 +91,109 @@ function validateCubicBezier(value: unknown): ValidationError | null {
 /** Validate a composite shadow object */
 function validateShadow(value: unknown): ValidationError | null {
   if (!isRecord(value)) {
-    return err(
-      'value',
-      `Shadow value must be an object with offsetX, offsetY, blur, spread, and color fields`
-    );
+    return err('value', `Shadow value must be an object with offsetX, offsetY, blur, spread, and color fields`);
   }
 
   const shadow = value as Partial<ShadowValue>;
-  const dimensionFields: Array<keyof ShadowValue> = [
-    'offsetX',
-    'offsetY',
-    'blur',
-    'spread',
-  ];
+  const dimensionFields: Array<keyof ShadowValue> = ['offsetX', 'offsetY', 'blur', 'spread'];
 
   for (const field of dimensionFields) {
     const fieldVal = shadow[field];
-    if (fieldVal === undefined) {
-      return err(
-        'value',
-        `Shadow value is missing required field "${field}"`
-      );
-    }
-    if (typeof fieldVal !== 'string') {
-      return err(
-        'value',
-        `Shadow field "${field}" must be a string with a px or rem suffix, got: ${JSON.stringify(fieldVal)}`
-      );
-    }
-    if (!DIMENSION_RE.test(fieldVal)) {
-      return err(
-        'value',
-        `Shadow field "${field}" must be a dimension string with \`px\` or \`rem\` suffix (e.g. "4px"), got: ${JSON.stringify(fieldVal)}`
-      );
-    }
+    if (fieldVal === undefined) return err('value', `Shadow value is missing required field "${field}"`);
+    if (isRecord(fieldVal) && '$alias' in fieldVal) continue;
+    const valErr = validateDimension(fieldVal);
+    if (valErr) return err('value', `Shadow field "${field}" invalid: ${valErr.message}`);
   }
 
-  if (shadow.color === undefined) {
-    return err('value', `Shadow value is missing required field "color"`);
+  if (shadow.color === undefined) return err('value', `Shadow value is missing required field "color"`);
+  if (!(isRecord(shadow.color) && '$alias' in shadow.color)) {
+     const cErr = validateColor(shadow.color);
+     if (cErr) return err('value', `Shadow field "color" invalid: ${cErr.message}`);
   }
-  if (!COLOR_RE.test(shadow.color)) {
-    return err(
-      'value',
-      `Shadow field "color" must be an 8-digit hex string (#RRGGBBAA), got: ${JSON.stringify(shadow.color)}`
-    );
+
+  return null;
+}
+
+function validateTypography(value: unknown): ValidationError | null {
+  if (!isRecord(value)) return err('value', `Typography value must be an object`);
+  const typo = value as Partial<TypographyValue>;
+  
+  if (typo.fontFamily === undefined) return err('value', 'Typography missing fontFamily');
+  if (!(isRecord(typo.fontFamily) && '$alias' in typo.fontFamily)) {
+    const e = validateFontFamily(typo.fontFamily);
+    if (e) return err('value', `Typography fontFamily invalid: ${e.message}`);
+  }
+
+  if (typo.fontSize === undefined) return err('value', 'Typography missing fontSize');
+  if (!(isRecord(typo.fontSize) && '$alias' in typo.fontSize)) {
+    const e = validateFontSize(typo.fontSize);
+    if (e) return err('value', `Typography fontSize invalid: ${e.message}`);
+  }
+
+  if (typo.fontWeight === undefined) return err('value', 'Typography missing fontWeight');
+  if (!(isRecord(typo.fontWeight) && '$alias' in typo.fontWeight)) {
+    const e = validateFontWeight(typo.fontWeight);
+    if (e) return err('value', `Typography fontWeight invalid: ${e.message}`);
+  }
+
+  if (typo.lineHeight === undefined) return err('value', 'Typography missing lineHeight');
+  if (!(isRecord(typo.lineHeight) && '$alias' in typo.lineHeight)) {
+    const e = validateLineHeight(typo.lineHeight);
+    if (e) return err('value', `Typography lineHeight invalid: ${e.message}`);
+  }
+
+  if (typo.letterSpacing === undefined) return err('value', 'Typography missing letterSpacing');
+  if (!(isRecord(typo.letterSpacing) && '$alias' in typo.letterSpacing)) {
+    const e = validateLetterSpacing(typo.letterSpacing);
+    if (e) return err('value', `Typography letterSpacing invalid: ${e.message}`);
+  }
+
+  return null;
+}
+
+function validateGradient(value: unknown): ValidationError | null {
+  if (!Array.isArray(value)) return err('value', `Gradient value must be an array of stops`);
+  for (let i = 0; i < value.length; i++) {
+    const stop = value[i];
+    if (!isRecord(stop)) return err('value', `Gradient stop ${i} must be an object`);
+    
+    if (stop.color === undefined) return err('value', `Gradient stop ${i} missing color`);
+    if (!(isRecord(stop.color) && '$alias' in stop.color)) {
+      const e = validateColor(stop.color);
+      if (e) return err('value', `Gradient stop ${i} color invalid: ${e.message}`);
+    }
+
+    if (stop.position === undefined) return err('value', `Gradient stop ${i} missing position`);
+    if (!(isRecord(stop.position) && '$alias' in stop.position)) {
+      if (typeof stop.position !== 'number' || stop.position < 0 || stop.position > 1) {
+        return err('value', `Gradient stop ${i} position must be a number between 0 and 1`);
+      }
+    }
+  }
+  return null;
+}
+
+function validateBorder(value: unknown): ValidationError | null {
+  if (!isRecord(value)) return err('value', `Border value must be an object`);
+  const border = value as Partial<BorderValue>;
+
+  if (border.color === undefined) return err('value', 'Border missing color');
+  if (!(isRecord(border.color) && '$alias' in border.color)) {
+    const e = validateColor(border.color);
+    if (e) return err('value', `Border color invalid: ${e.message}`);
+  }
+
+  if (border.width === undefined) return err('value', 'Border missing width');
+  if (!(isRecord(border.width) && '$alias' in border.width)) {
+    const e = validateDimension(border.width);
+    if (e) return err('value', `Border width invalid: ${e.message}`);
+  }
+
+  if (border.style === undefined) return err('value', 'Border missing style');
+  if (!(isRecord(border.style) && '$alias' in border.style)) {
+    if (typeof border.style !== 'string' || border.style.trim() === '') {
+      return err('value', `Border style must be a non-empty string`);
+    }
   }
 
   return null;
@@ -236,6 +298,15 @@ export function validateTokenValue(
 
     case 'shadow':
       return validateShadow(value);
+
+    case 'typography':
+      return validateTypography(value);
+
+    case 'gradient':
+      return validateGradient(value);
+
+    case 'border':
+      return validateBorder(value);
 
     case 'fontFamily':
       return validateFontFamily(value);
