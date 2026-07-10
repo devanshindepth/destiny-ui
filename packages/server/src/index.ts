@@ -17,3 +17,11 @@ export {
   type TokensReloadMessage,
   type HeartbeatMessage,
 } from './wsServer.js';
+export {
+  createFileWatcher,
+  type FileWatcher,
+  type FileWatcherOptions,
+  type WatchEvent,
+} from './fileWatcher.js';
+export { wireFileWatcher } from './watcherBridge.js';
+export { persistOutputFiles } from './outputPersistence.js';

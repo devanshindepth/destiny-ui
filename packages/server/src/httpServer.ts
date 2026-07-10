@@ -15,6 +15,7 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import express, {
   type Request,
@@ -43,6 +44,7 @@ import {
 
 import { type EngineState } from './engineState.js';
 import { type ServerMessage } from './wsServer.js';
+import { persistOutputFiles } from './outputPersistence.js';
 
 // ─── Response envelope ────────────────────────────────────────────────────────
 
@@ -189,12 +191,14 @@ export function createServer(
   const app = express();
   app.use(express.json());
 
-  // Resolve the SPA dist path
+  // Resolve the SPA dist path.
+  // fileURLToPath correctly handles Windows file:///C:/... URLs, converting
+  // them to C:\... paths, which path.resolve then processes correctly.
   const spaDistPath =
     distPath ??
     path.resolve(
-      new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), // normalize Windows paths
-      '../../../editor/dist',
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../editor/dist',
     );
 
   // ── GET /api/health ──────────────────────────────────────────────────────
@@ -272,6 +276,9 @@ export function createServer(
     if (writeErr) {
       state.errors = [...state.errors, writeErr];
     }
+
+    // Write full CSS and DTCG output files to disk (req 8.1–8.3, 9.1–9.3)
+    await persistOutputFiles(state, config);
 
     const payload = buildTokensPayload(state);
 
@@ -363,6 +370,9 @@ export function createServer(
       state.errors = [...state.errors, writeErr];
     }
 
+    // Write full CSS and DTCG output files to disk (req 8.1–8.3, 9.1–9.3)
+    await persistOutputFiles(state, config);
+
     const payload = buildTokensPayload(state);
 
     // Broadcast delta CSS patch + errors to WebSocket clients
@@ -407,6 +417,9 @@ export function createServer(
     if (writeErr) {
       state.errors = [...state.errors, writeErr];
     }
+
+    // Write full CSS and DTCG output files to disk (req 8.1–8.3, 9.1–9.3)
+    await persistOutputFiles(state, config);
 
     const payload = buildTokensPayload(state);
 
