@@ -224,7 +224,7 @@ describe('parseTokenFile – validation errors', () => {
   it('records ValidationError for unknown $type', () => {
     const content = JSON.stringify({
       color: {
-        primary: { $value: '#FF0000FF', $type: 'gradient' },
+        primary: { $value: '#FF0000FF', $type: 'spaceship' },
       },
     });
 

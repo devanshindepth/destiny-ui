@@ -45,6 +45,8 @@ const CATEGORY_MAP: Record<string, TokenCategory> = {
   'shadows': 'shadows',
   'motion': 'motion',
   'breakpoints': 'breakpoints',
+  'gradients': 'gradients',
+  'borders': 'borders',
 
   // common aliases
   color: 'brand-colors',
@@ -66,6 +68,8 @@ const CATEGORY_MAP: Record<string, TokenCategory> = {
   'size': 'breakpoints',
   'screen': 'breakpoints',
   'viewport': 'breakpoints',
+  'gradient': 'gradients',
+  'border': 'borders',
 };
 
 function deriveCategory(topLevelKey: string): TokenCategory {
@@ -92,6 +96,9 @@ const VALID_TYPES = new Set<string>([
   'shadow',
   'duration',
   'cubicBezier',
+  'typography',
+  'gradient',
+  'border',
 ]);
 
 function isTokenType(value: unknown): value is TokenType {
@@ -109,16 +116,24 @@ function parseValue(raw: unknown): TokenValue {
     if (m) {
       return { $alias: m[1] } as AliasValue;
     }
-  }
-  // ShadowValue — object without $alias, not an array
-  if (
-    typeof raw === 'object' &&
-    raw !== null &&
-    !Array.isArray(raw) &&
-    !('$alias' in raw)
-  ) {
     return raw as BaseValue;
   }
+
+  if (Array.isArray(raw)) {
+    return raw.map(parseValue) as unknown as BaseValue;
+  }
+
+  if (typeof raw === 'object' && raw !== null) {
+    if ('$alias' in raw) {
+      return raw as AliasValue;
+    }
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(raw)) {
+      result[key] = parseValue(val);
+    }
+    return result as unknown as BaseValue;
+  }
+
   return raw as BaseValue;
 }
 
@@ -256,12 +271,41 @@ function parseTokenNode(
   const description =
     typeof node['$description'] === 'string' ? node['$description'] : undefined;
 
+  // ── $extensions.modes (optional) ───────────────────────────────────────────
+  let modes: Record<string, TokenValue> | undefined = undefined;
+  if (
+    typeof node['$extensions'] === 'object' &&
+    node['$extensions'] !== null
+  ) {
+    const exts = node['$extensions'] as Record<string, unknown>;
+    if (typeof exts.modes === 'object' && exts.modes !== null) {
+      modes = {};
+      for (const [modeName, modeRawValue] of Object.entries(exts.modes)) {
+        const modeValue = parseValue(modeRawValue);
+        if (!isAliasValue(modeValue)) {
+          const valErr = validateTokenValue(type, modeValue, category);
+          if (valErr) {
+            errors.push({
+              ...valErr,
+              tokenId: id,
+              message: `[mode: ${modeName}] ${valErr.message}`,
+            });
+            continue;
+          }
+        }
+        modes[modeName] = modeValue;
+      }
+      if (Object.keys(modes).length === 0) modes = undefined;
+    }
+  }
+
   tokens.push({
     id,
     name,
     category,
     type,
     value,
+    ...(modes !== undefined ? { modes } : {}),
     ...(description !== undefined ? { description } : {}),
     sourceFile: '',
   });
