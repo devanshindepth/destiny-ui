@@ -6,6 +6,7 @@ interface TokenStoreState {
   tokens: Map<string, ResolvedToken>;
   errors: TokenError[];
   selectedTokenId: string | null;
+  selectedCategory: string | null;
   searchQuery: string;
   // computed selector (not stored state)
   filteredTokens: () => ResolvedToken[];
@@ -13,6 +14,7 @@ interface TokenStoreState {
   setTokens: (tokens: Map<string, ResolvedToken>) => void;
   setErrors: (errors: TokenError[]) => void;
   selectToken: (id: string | null) => void;
+  selectCategory: (category: string | null) => void;
   setSearchQuery: (q: string) => void;
 }
 
@@ -20,6 +22,7 @@ export const useTokenStore = create<TokenStoreState>()((set, get) => ({
   tokens: new Map(),
   errors: [],
   selectedTokenId: null,
+  selectedCategory: null,
   searchQuery: '',
   filteredTokens: () => {
     const { tokens, searchQuery } = get();
@@ -28,5 +31,6 @@ export const useTokenStore = create<TokenStoreState>()((set, get) => ({
   setTokens: (tokens) => set({ tokens }),
   setErrors: (errors) => set({ errors }),
   selectToken: (id) => set({ selectedTokenId: id }),
+  selectCategory: (category) => set({ selectedCategory: category, selectedTokenId: null }),
   setSearchQuery: (q) => set({ searchQuery: q }),
 }));

@@ -3,7 +3,9 @@ import { Header } from './Header';
 import { Sidebar } from './layout/Sidebar';
 import { DetailPanel } from './layout/DetailPanel';
 import { PreviewSection } from './layout/PreviewSection';
+import { TokenGrid } from './grid/TokenGrid';
 import { createWsClient } from '../ws/client';
+import { useTokenStore } from '../stores/index.js';
 
 /** Minimal shape we need from the config API response. */
 interface ConfigApiResponse {
@@ -15,6 +17,8 @@ interface ConfigApiResponse {
 }
 
 export function App() {
+  const selectedTokenId = useTokenStore((s) => s.selectedTokenId);
+
   useEffect(() => {
     let client: ReturnType<typeof createWsClient> | null = null;
 
@@ -51,7 +55,7 @@ export function App() {
       <Header />
       <div class="app-body">
         <Sidebar />
-        <DetailPanel />
+        {selectedTokenId ? <DetailPanel /> : <TokenGrid />}
         <PreviewSection />
       </div>
     </div>

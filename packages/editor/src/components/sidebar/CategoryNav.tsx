@@ -1,6 +1,5 @@
 import { TOKEN_CATEGORIES } from '@destiny-ui/core';
-import { useTokenStore } from '../../stores';
-import { TokenList } from './TokenList';
+import { useTokenStore } from '../../stores/index.js';
 
 function formatCategory(cat: string): string {
   return cat
@@ -10,29 +9,46 @@ function formatCategory(cat: string): string {
 }
 
 export function CategoryNav() {
-  const filteredTokens = useTokenStore((s) => s.filteredTokens)();
+  const selectedCategory = useTokenStore((s) => s.selectedCategory);
+  const selectCategory = useTokenStore((s) => s.selectCategory);
+  const tokens = useTokenStore((s) => s.tokens);
 
-  if (filteredTokens.length === 0) {
-    return (
-      <div class="no-results" role="status">
-        No tokens match your search.
-      </div>
-    );
-  }
-
-  const grouped = TOKEN_CATEGORIES.map((cat) => ({
-    category: cat,
-    tokens: filteredTokens.filter((rt) => rt.token.category === cat),
-  })).filter((g) => g.tokens.length > 0);
+  const allCount = tokens.size;
 
   return (
-    <nav class="category-nav" aria-label="Token categories">
-      {grouped.map(({ category, tokens }) => (
-        <section key={category} class="category-section">
-          <h2 class="category-heading">{formatCategory(category)}</h2>
-          <TokenList tokens={tokens} />
-        </section>
-      ))}
+    <nav class="category-nav" aria-label="Token categories" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <button 
+        class={`category-heading ${selectedCategory === null ? 'active' : ''}`}
+        onClick={() => selectCategory(null)}
+        style={{ 
+          width: '100%', textAlign: 'left', background: selectedCategory === null ? 'rgba(134, 185, 176, 0.1)' : 'transparent', 
+          border: 'none', cursor: 'pointer', padding: '8px', color: selectedCategory === null ? '#86b9b0' : 'inherit',
+          borderRadius: '4px'
+        }}
+      >
+        All Tokens ({allCount})
+      </button>
+
+      {TOKEN_CATEGORIES.map((cat) => {
+        const count = Array.from(tokens.values()).filter(t => t.token.category === cat).length;
+        if (count === 0) return null;
+
+        const isActive = selectedCategory === cat;
+        return (
+          <button 
+            key={cat}
+            class={`category-heading ${isActive ? 'active' : ''}`}
+            onClick={() => selectCategory(cat)}
+            style={{ 
+              width: '100%', textAlign: 'left', background: isActive ? 'rgba(134, 185, 176, 0.1)' : 'transparent', 
+              border: 'none', cursor: 'pointer', padding: '8px', paddingLeft: '16px',
+              color: isActive ? '#86b9b0' : 'inherit', borderRadius: '4px'
+            }}
+          >
+            {formatCategory(cat)} ({count})
+          </button>
+        );
+      })}
     </nav>
   );
 }
