@@ -4,7 +4,7 @@
   "description": "Design Studio — local-first design token editor",
   "private": true,
   "scripts": {
-    "build": "pnpm -r run build",
+    "build": "pnpm --filter @destiny-ui/core build && pnpm --filter @destiny-ui/server build && pnpm --filter @destiny-ui/editor build && pnpm --filter @destiny-ui/cli build",
     "test": "vitest run --workspace vitest.workspace.ts --passWithNoTests",
     "test:watch": "vitest --workspace vitest.workspace.ts",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
