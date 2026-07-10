@@ -23,6 +23,75 @@ import {
   type BaseValue,
 } from './types.js';
 
+// ─── Alias resolution helpers ────────────────────────────────────────────────
+
+function extractAliases(val: unknown): string[] {
+  if (typeof val === 'object' && val !== null) {
+    if ('$alias' in val && typeof (val as any)['$alias'] === 'string') {
+      return [(val as any)['$alias']];
+    }
+    const aliases: string[] = [];
+    if (Array.isArray(val)) {
+      for (const item of val) aliases.push(...extractAliases(item));
+    } else {
+      for (const item of Object.values(val)) aliases.push(...extractAliases(item));
+    }
+    return aliases;
+  }
+  return [];
+}
+
+function resolveDeep(
+  val: unknown,
+  resolvedCache: Map<string, ResolvedToken | TokenError>,
+  tokenId: string,
+  activeMode?: string,
+): { resolved: unknown; error?: UnresolvedReferenceError; chain: string[] } {
+  if (typeof val === 'object' && val !== null) {
+    if ('$alias' in val && typeof (val as any)['$alias'] === 'string') {
+      const targetId = (val as any)['$alias'];
+      const cached = resolvedCache.get(targetId);
+      if (cached === undefined || (cached as TokenError).kind !== undefined) {
+        return { 
+          resolved: null, 
+          error: { kind: 'unresolved-reference', tokenId, referencedId: targetId },
+          chain: []
+        };
+      }
+      const resolvedTarget = cached as ResolvedToken;
+      let targetValue = resolvedTarget.resolvedValue;
+      if (activeMode && resolvedTarget.modes?.[activeMode] !== undefined) {
+        targetValue = resolvedTarget.modes[activeMode];
+      }
+      return { 
+        resolved: targetValue,
+        chain: [targetId, ...resolvedTarget.aliasChain] 
+      };
+    }
+    if (Array.isArray(val)) {
+      const resArray = [];
+      const combinedChain: string[] = [];
+      for (const item of val) {
+        const r = resolveDeep(item, resolvedCache, tokenId, activeMode);
+        if (r.error) return r;
+        resArray.push(r.resolved);
+        combinedChain.push(...r.chain);
+      }
+      return { resolved: resArray, chain: combinedChain };
+    }
+    const resObj: Record<string, unknown> = {};
+    const combinedChain: string[] = [];
+    for (const [k, v] of Object.entries(val)) {
+      const r = resolveDeep(v, resolvedCache, tokenId, activeMode);
+      if (r.error) return r;
+      resObj[k] = r.resolved;
+      combinedChain.push(...r.chain);
+    }
+    return { resolved: resObj, chain: combinedChain };
+  }
+  return { resolved: val, chain: [] };
+}
+
 // ─── Internal mutable graph type ─────────────────────────────────────────────
 
 interface MutableGraph {
@@ -139,43 +208,27 @@ function resolveOne(
   token: Token,
   resolvedCache: Map<string, ResolvedToken | TokenError>,
 ): ResolvedToken | TokenError {
-  const value = token.value;
+  const result = resolveDeep(token.value, resolvedCache, token.id);
+  if (result.error) return result.error;
+  
+  let modes: Record<string, BaseValue> | undefined = undefined;
+  const chains = new Set<string>(result.chain);
 
-  if (!isAlias(value)) {
-    // Base token
-    return {
-      token,
-      resolvedValue: value as BaseValue,
-      aliasChain: [],
-    };
+  if (token.modes) {
+    modes = {};
+    for (const [modeName, modeVal] of Object.entries(token.modes)) {
+      const modeResult = resolveDeep(modeVal, resolvedCache, token.id, modeName);
+      if (modeResult.error) return modeResult.error;
+      modes[modeName] = modeResult.resolved as BaseValue;
+      for (const c of modeResult.chain) chains.add(c);
+    }
   }
 
-  const targetId = value.$alias;
-  const cached = resolvedCache.get(targetId);
-
-  if (cached === undefined) {
-    // Target not in graph at all
-    return {
-      kind: 'unresolved-reference',
-      tokenId: token.id,
-      referencedId: targetId,
-    } satisfies UnresolvedReferenceError;
-  }
-
-  if ((cached as TokenError).kind !== undefined) {
-    // Target resolved to an error — propagate as unresolved-reference
-    return {
-      kind: 'unresolved-reference',
-      tokenId: token.id,
-      referencedId: targetId,
-    } satisfies UnresolvedReferenceError;
-  }
-
-  const resolved = cached as ResolvedToken;
   return {
     token,
-    resolvedValue: resolved.resolvedValue,
-    aliasChain: [targetId, ...resolved.aliasChain],
+    resolvedValue: result.resolved as BaseValue,
+    ...(modes ? { modes } : {}),
+    aliasChain: Array.from(chains),
   };
 }
 
@@ -229,8 +282,13 @@ function buildEdges(tokens: Map<string, Token>): {
   const reverseEdges = new Map<string, Set<string>>();
 
   for (const [id, token] of tokens) {
-    if (isAlias(token.value)) {
-      const targetId = token.value.$alias;
+    const targets = extractAliases(token.value);
+    if (token.modes) {
+      for (const modeVal of Object.values(token.modes)) {
+        targets.push(...extractAliases(modeVal));
+      }
+    }
+    for (const targetId of targets) {
       addEdge(edges, id, targetId);
       addEdge(reverseEdges, targetId, id);
     }
@@ -438,15 +496,25 @@ export function updateTokenValue(
   );
 
   // Remove old alias edges for this token
-  if (isAlias(oldValue)) {
-    const oldTarget = oldValue.$alias;
+  const oldTargets = extractAliases(oldValue);
+  if (oldToken.modes) {
+    for (const modeVal of Object.values(oldToken.modes)) {
+      oldTargets.push(...extractAliases(modeVal));
+    }
+  }
+  for (const oldTarget of oldTargets) {
     removeEdge(edges, tokenId, oldTarget);
     removeEdge(reverseEdges, oldTarget, tokenId);
   }
 
   // Add new alias edges if the new value is an alias
-  if (isAlias(newValue)) {
-    const newTarget = newValue.$alias;
+  const newTargets = extractAliases(newValue);
+  if (updatedToken.modes) {
+    for (const modeVal of Object.values(updatedToken.modes)) {
+      newTargets.push(...extractAliases(modeVal));
+    }
+  }
+  for (const newTarget of newTargets) {
     addEdge(edges, tokenId, newTarget);
     addEdge(reverseEdges, newTarget, tokenId);
   }
